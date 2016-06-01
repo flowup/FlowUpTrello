@@ -42,6 +42,13 @@
 	line-height: 18px;
 }
 
+.badge-points-cash {
+  background-color: #8BC34A !important;
+  border-color: #4CAF50 !important;
+  border-bottom-color: #689F38 !important;
+  color: #004b5f !important;
+}
+
 .picker-consumed,
 .picker {
 	float: left;

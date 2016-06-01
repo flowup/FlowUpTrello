@@ -57,10 +57,10 @@ S4T_SETTING_DEFAULTS[SETTING_NAME_LINK_STYLE] = 'full';
 S4T_SETTING_DEFAULTS[SETTING_NAME_ESTIMATES] = _pointSeq.join();
 refreshSettings(); // get the settings right away (may take a little bit if using Chrome cloud storage)
 
-//internals
-var reg = /((?:^|\s?))\((\x3f|\d*\.?\d+)(\))\s?/m, //parse regexp- accepts digits, decimals and '?', surrounded by ()
-    regC = /((?:^|\s?))\[(\x3f|\d*\.?\d+)(\])\s?/m, //parse regexp- accepts digits, decimals and '?', surrounded by []
-    iconUrl, pointsDoneUrl,
+//parse regexp- accepts digits, decimals and '?', surrounded by brackets, when prefixed by $ symbol, first capturing group will recognize it
+var reg = /(?:^|\s?)\((\$?)\s?(\x3f|\d*\.?\d+)(\))\s?/m, // surrounded by ()
+  regC = /(?:^|\s?)\[(\$?)\s?(\x3f|\d*\.?\d+)(\])\s?/m, // surrounded by []
+  iconUrl, pointsDoneUrl, cashIconUrl,
 	flameUrl, flame18Url,
 	scrumLogoUrl, scrumLogo18Url;
 // FIREFOX_BEGIN_REMOVE
@@ -68,6 +68,7 @@ if(typeof chrome !== 'undefined'){
     // Works in Chrome
 	iconUrl = chrome.extension.getURL('images/storypoints-icon.png');
 	pointsDoneUrl = chrome.extension.getURL('images/points-done.png');
+  cashIconUrl = chrome.extension.getURL('images/cash-icon.png');
     flameUrl = chrome.extension.getURL('images/burndown_for_trello_icon_12x12.png');
     flame18Url = chrome.extension.getURL('images/burndown_for_trello_icon_18x18.png');
 	scrumLogoUrl = chrome.extension.getURL('images/trello-scrum-icon_12x12.png');
@@ -76,6 +77,7 @@ if(typeof chrome !== 'undefined'){
 	// Works in Safari
 	iconUrl = safari.extension.baseURI + 'images/storypoints-icon.png';
 	pointsDoneUrl = safari.extension.baseURI + 'images/points-done.png';
+  cashIconUrl = safari.extension.baseURI + 'images/cash-icon.png';
     flameUrl = safari.extension.baseURI + 'images/burndown_for_trello_icon_12x12.png';
     flame18Url = safari.extension.baseURI + 'images/burndown_for_trello_icon_18x18.png';
 	scrumLogoUrl = safari.extension.baseURI + 'images/trello-scrum-icon_12x12.png';
@@ -86,6 +88,7 @@ if(typeof chrome !== 'undefined'){
 	if(typeof self.options != 'undefined'){ // options defined in main.js
 		iconUrl = self.options.iconUrl;
 		pointsDoneUrl = self.options.pointsDoneUrl;
+    cashIconUrl = self.options.cashIconUrl;
         flameUrl = self.options.flameUrl;
         flame18Url = self.options.flame18Url;
 		scrumLogoUrl = self.options.scrumLogoUrl;
@@ -594,6 +597,13 @@ function ListCard(el, identifier){
 	}
 	el.listCard[identifier]=this;
 
+  var cashPoints = false;
+  var m;
+	// this will check if the dolar ($) symbol is present in the card title points estimation or consumption
+  if ((m = /(?:^|\s?)[\(\[](\$?)\s?(\x3f|\d*\.?\d+)([\)\]])\s?/m.exec($(el).find('a.list-card-title')[0].textContent)) !== null) {
+    if (m[1] == '$') cashPoints = true;
+  }
+
 	var points=-1,
 		consumed=identifier!=='points',
 		regexp=consumed?regC:reg,
@@ -601,7 +611,8 @@ function ListCard(el, identifier){
 		that=this,
 		busy=false,
 		$card=$(el),
-		$badge=$('<div class="badge badge-points point-count" style="background-image: url('+iconUrl+')"/>'),
+		$badge = cashPoints ? $('<div class="badge badge-points badge-points-cash point-count" style="background-image: url(' + cashIconUrl + ')"></div>') :
+			$('<div class="badge badge-points point-count" style="background-image: url(' + iconUrl + ')"></div>'),
 		to,
 		to2;
 
@@ -650,7 +661,7 @@ function ListCard(el, identifier){
 				if(titleTextContent != parsedTitle){
 					$title.data('orig-title', titleTextContent); // store the non-mutilated title (with all of the estimates/time-spent in it).
 				}
-				parsedTitle = $.trim(el._title.replace(reg,'$1').replace(regC,'$1'));
+				parsedTitle = $.trim(el._title.replace(reg,'$1').replace(regC,'$1').replace('\$', ''));
 				el._title = parsedTitle;
 				$title.data('parsed-title', parsedTitle); // save it to the DOM element so that both badge-types can refer back to it.
 				if($title[0].childNodes.length > 1){
