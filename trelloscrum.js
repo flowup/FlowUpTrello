@@ -58,8 +58,9 @@ S4T_SETTING_DEFAULTS[SETTING_NAME_ESTIMATES] = _pointSeq.join();
 refreshSettings(); // get the settings right away (may take a little bit if using Chrome cloud storage)
 
 //parse regexp- accepts digits, decimals and '?', surrounded by brackets, when prefixed by $ symbol, first capturing group will recognize it
-var reg = /(?:^|\s?)\((\$?)\s?(\x3f|\d*\.?\d+)(\))\s?/m, // surrounded by ()
-  regC = /(?:^|\s?)\[(\$?)\s?(\x3f|\d*\.?\d+)(\])\s?/m, // surrounded by []
+var reg = /(?:^|\s?)\((\$?)\s?(\x3f|\d*\.? ?\d+)(\))\s?/m, // surrounded by ()
+  regC = /(?:^|\s?)\[(\$?)\s?(\x3f|\d*\.? ?\d+)(\])\s?/m, // surrounded by []
+  regV = /\{(\d*)\}/m, // value of one point in cash surrounded by {}
   iconUrl, pointsDoneUrl, cashIconUrl,
 	flameUrl, flame18Url,
 	scrumLogoUrl, scrumLogo18Url;
@@ -99,6 +100,11 @@ if(typeof chrome !== 'undefined'){
 } // FIREFOX_END_REMOVE
 
 function round(_val) {return (Math.round(_val * 100) / 100)};
+
+// used to display cash value in format '1 000' instead of '1000'
+function currencyFormat(i) {
+	return i.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ");
+}
 
 // Comment out before release - makes cross-browser debugging easier.
 //function log(msg){
@@ -462,13 +468,20 @@ function computeTotal(){
 			$total = $('<span/>', {class: "list-total"}).appendTo($title);
 
 		for (var i in _pointsAttr){
-			var score = 0,
+			var score = 0, cash = 0,
 				attr = _pointsAttr[i];
-			$('#board .list-total .'+attr).each(function(){
+			$('#board .list-total:not(.list-total-cash) .'+attr).each(function(){
 				score+=parseFloat(this.textContent)||0;
 			});
 			var scoreSpan = $('<span/>', {class: attr}).text(round(score)||'');
 			$total.append(scoreSpan);
+
+			$('#board .list-total.list-total-cash .'+attr).each(function(){
+				cash+=parseFloat(this.textContent.replace(' ', ''))||0;
+			});
+			console.log('cash', cash);
+			var valueSpan = $('<span/>', {class: "cash-total "+attr}).text(currencyFormat(round(cash)));
+			$total.append(valueSpan);
 		}
         
         updateBurndownLink(); // the burndown link and the total are on the same bar... so now they'll be in sync as to whether they're both there or not.
@@ -494,6 +507,7 @@ function List(el){
 
 	var $list=$(el),
 		$total=$('<span class="list-total">'),
+		$totalCash=$('<span class="list-total list-total-cash">'),
 		busy = false,
 		to,
 		to2;
@@ -521,21 +535,28 @@ function List(el){
 		clearTimeout(to);
 		to = setTimeout(function(){
 			$total.empty().appendTo($list.find('.list-title,.list-header'));
+			$totalCash.empty().appendTo($list.find('.list-title,.list-header'));
 			for (var i in _pointsAttr){
-				var score=0,
+				var score=0, value=0,
 					attr = _pointsAttr[i];
 				$list.find('.list-card:not(.placeholder)').each(function(){
 					if(!this.listCard) return;
-					if(!isNaN(Number(this.listCard[attr].points))){
+					if(!isNaN(Number(this.listCard[attr].points)) && !isNaN(Number(this.listCard[attr].cash))){
 						// Performance note: calling :visible in the selector above leads to noticible CPU usage.
 						if(jQuery.expr.filters.visible(this)){
 							score+=Number(this.listCard[attr].points);
+							value+=Number(this.listCard[attr].cash);
+							// computes cash value from points and point value
+							value+=Number(this.listCard[attr].points * this.listCard[attr].pointValue);
 						}
 					}
 				});
 				var scoreTruncated = round(score);
-				var scoreSpan = $('<span/>', {class: attr}).text( (scoreTruncated>0) ? scoreTruncated : '' );
+				var valueTruncated = (value>0) ? currencyFormat(round(value)) : '';
+				var scoreSpan = $('<span/>', {class: attr}).text( (scoreTruncated>0) ? scoreTruncated : '');
+				var cashSpan = $('<span/>', {class: attr}).text(valueTruncated);
 				$total.append(scoreSpan);
+				$totalCash.append(cashSpan);
 				computeTotal();
 			}
 		});
@@ -555,7 +576,7 @@ function List(el){
 			var $target = $(mutation.target);
 			
 			// Ignore a bunch of known elements that send mutation events.
-			if(! ($target.hasClass('list-total')
+			if (! ($target.hasClass('list-total')
 					|| $target.hasClass('list-title')
 					|| $target.hasClass('list-header')
 					|| $target.hasClass('badge-points')
@@ -604,15 +625,15 @@ function ListCard(el, identifier){
     if (m[1] == '$') cashPoints = true;
   }
 
-	var points=-1,
+	var points=-1, cash=-1, pointValue=0,
 		consumed=identifier!=='points',
 		regexp=consumed?regC:reg,
 		parsed,
 		that=this,
 		busy=false,
 		$card=$(el),
-		$badge = cashPoints ? $('<div class="badge badge-points badge-points-cash point-count" style="background-image: url(' + cashIconUrl + ')"></div>') :
-			$('<div class="badge badge-points point-count" style="background-image: url(' + iconUrl + ')"></div>'),
+		$badge = $('<div class="badge badge-points point-count" style="background-image: url(' + iconUrl + ')"></div>'),
+		$cashBadge = $('<div class="badge badge-points badge-points-cash point-count" style="background-image: url(' + cashIconUrl + ')"></div>'),
 		to,
 		to2;
 
@@ -635,33 +656,59 @@ function ListCard(el, identifier){
 			if(titleTextContent) el._title = titleTextContent;
 			
 			// Get the stripped-down (parsed) version without the estimates, that was stored after the last change.
-			var parsedTitle = $title.data('parsed-title'); 
+			var parsedTitle = $title.data('parsed-title');
 
-			if(titleTextContent != parsedTitle){
-				// New card title, so we have to parse this new info to find the new amount of points.
-				parsed=titleTextContent.match(regexp);
-				points=parsed?parsed[2]:-1;
+			// New card title, so we have to parse this new info to find the new amount of points.
+			// Title text has already been parsed... process the pre-parsed title to get the correct points.
+			if (parsed = (titleTextContent != parsedTitle) ? titleTextContent.match(regexp) : $title.data('orig-title').match(regexp)) {
+				if (cashValue = (parsed[1] != '$')) {
+					points = parsed[2];
+					var parsedValue;
+					if (parsedValue = parsed.input.match(regV)) {
+						pointValue = parsedValue[1];
+					}
+				} else {
+					cash = parsed[2].replace(' ', '');
+				}
 			} else {
-				// Title text has already been parsed... process the pre-parsed title to get the correct points.
-				var origTitle = $title.data('orig-title');
-				parsed=origTitle.match(regexp);
-				points=parsed?parsed[2]:-1;
+				points = -1;
+				cash = -1;
+				pointValue = 0;
 			}
 
 			clearTimeout(to2);
 			to2 = setTimeout(function(){
-				// Add the badge (for this point-type: regular or consumed) to the badges div.
-				$badge
-					.text(that.points)
-					[(consumed?'add':'remove')+'Class']('consumed')
-					.attr({title: 'This card has '+that.points+ (consumed?' consumed':'')+' storypoint' + (that.points == 1 ? '.' : 's.')})
-					.prependTo($card.find('.badges'));
+				if (!cashPoints) {
+					// Add the badge (for this point-type: regular or consumed) to the badges div.
+					$badge
+						.text(that.points)
+						[(consumed?'add':'remove')+'Class']('consumed')
+						.attr({title: 'This card has '+that.points+ (consumed?' consumed':'')+' storypoint' + (that.points == 1 ? '.' : 's.')})
+						.prependTo($card.find('.badges'));
+					if (pointValue>0) {
+						// Add the cash symbolizing badge (for this point-type: regular or consumed) to the badges div. Cash amount is computed from point value
+						$cashBadge
+							.text(currencyFormat(that.points * pointValue))
+							[(consumed?'add':'remove')+'Class']('consumed')
+							.attr({title: 'This card has ' + (consumed?' consumed':'')+' value of ' + currencyFormat(that.points * pointValue)})
+							.prependTo($card.find('.badges'));
+					}
+				}
+				else {
+					// Add the cash symbolizing badge (for this point-type: regular or consumed) to the badges div.
+					$cashBadge
+						.text(currencyFormat(that.cash))
+						[(consumed?'add':'remove')+'Class']('consumed')
+						.attr({title: 'This card has ' + (consumed?' consumed':'')+' value of ' + currencyFormat(that.cash)})
+						.prependTo($card.find('.badges'));
+				}
+
 
 				// Update the DOM element's textContent and data if there were changes.
 				if(titleTextContent != parsedTitle){
 					$title.data('orig-title', titleTextContent); // store the non-mutilated title (with all of the estimates/time-spent in it).
 				}
-				parsedTitle = $.trim(el._title.replace(reg,'$1').replace(regC,'$1').replace('\$', ''));
+				parsedTitle = $.trim(el._title.replace(reg,'$1').replace(regC,'$1').replace('\$', '').replace(regV, ''));
 				el._title = parsedTitle;
 				$title.data('parsed-title', parsedTitle); // save it to the DOM element so that both badge-types can refer back to it.
 				if($title[0].childNodes.length > 1){
@@ -679,7 +726,13 @@ function ListCard(el, identifier){
 	};
 
 	this.__defineGetter__('points',function(){
-		return parsed?points:''
+		return parsed?points>0?points:0:''
+	});
+	this.__defineGetter__('cash',function(){
+		return parsed?cash>0?cash:0:''
+	});
+	this.__defineGetter__('pointValue',function(){
+		return parsed?pointValue>0?pointValue:0:''
 	});
 
 	var cardShortIdObserver = new CrossBrowser.MutationObserver(function(mutations){
