@@ -11,18 +11,18 @@
 	float: left;
 }
 .board-header-btns .list-total{ /* only targets the board points totals */
-	line-height:30px;
+	line-height:24px;
 	color: #60c5f0;
-}
-.board-header-btns .list-total > .cash-total{ /* only targets the board points totals */
-	color: #689F38;
-	float: left;
+	background-color: rgba(0,0,0,0.2);
+	border-radius: 3px;
 }
 
+.list-total span{
+	padding-left:3px;
+	padding-right:3px;
+}
 
 .list-total .cpoints{
-	margin-left:3px;
-	margin-right:3px;
 	opacity: 0.5;
 }
 

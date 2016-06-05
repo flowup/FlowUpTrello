@@ -489,7 +489,7 @@ function computeTotal(){
 			$('#board .list-total.list-total-cash .'+attr).each(function(){
 				cash+=parseFloat(this.textContent.replace(' ', ''))||0;
 			});
-			var valueSpan = $('<span/>', {class: "cash-total "+attr}).text(currencyFormat(round(cash)));
+			var valueSpan = $('<span/>', {class: "list-total-cash "+attr}).text(currencyFormat(round(cash)));
 			$total.append(valueSpan);
 		}
         
