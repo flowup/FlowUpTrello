@@ -103,7 +103,7 @@ function round(_val) {return (Math.round(_val * 100) / 100)};
 
 // used to display cash value in format '1 000' instead of '1000'
 function currencyFormat(i) {
-	return i.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ");
+	return i ? i.toString().replace(/(\d)(?=(\d{3})+(?!\d))/g, "$1 ") : '';
 }
 
 // Comment out before release - makes cross-browser debugging easier.
@@ -479,7 +479,6 @@ function computeTotal(){
 			$('#board .list-total.list-total-cash .'+attr).each(function(){
 				cash+=parseFloat(this.textContent.replace(' ', ''))||0;
 			});
-			console.log('cash', cash);
 			var valueSpan = $('<span/>', {class: "cash-total "+attr}).text(currencyFormat(round(cash)));
 			$total.append(valueSpan);
 		}
@@ -681,9 +680,9 @@ function ListCard(el, identifier){
 				if (!cashPoints) {
 					// Add the badge (for this point-type: regular or consumed) to the badges div.
 					$badge
-						.text(that.points)
+						.text(points=='?'?'?':that.points)
 						[(consumed?'add':'remove')+'Class']('consumed')
-						.attr({title: 'This card has '+that.points+ (consumed?' consumed':'')+' storypoint' + (that.points == 1 ? '.' : 's.')})
+						.attr({title: 'This card has '+points+ (consumed?' consumed':'')+' storypoint' + (that.points == 1 ? '.' : 's.')})
 						.prependTo($card.find('.badges'));
 					if (pointValue>0) {
 						// Add the cash symbolizing badge (for this point-type: regular or consumed) to the badges div. Cash amount is computed from point value
