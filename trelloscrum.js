@@ -16,6 +16,7 @@
 ** Kit Glennon <https://github.com/kitglen>
 ** Samuel Gaus <https://github.com/gausie>
 ** Sean Colombo <https://github.com/seancolombo>
+** Geoffrey Tisserand <https://github.com/geoffrey>
 **
 */
 
@@ -38,6 +39,9 @@ var debounce = function (func, threshold, execAsap) {
 		timeout = setTimeout(delayed, threshold || 100);
 	};
 }
+
+// Store the points for each members
+var membersPoints = {};
 
 // For MutationObserver
 var obsConfig = { childList: true, characterData: true, attributes: false, subtree: true };
@@ -167,6 +171,7 @@ var recalcTotalsObserver = new CrossBrowser.MutationObserver(function(mutations)
 		if(! ($target.hasClass('list-total')
 			  || $target.hasClass('list-title')
 			  || $target.hasClass('list-header')
+			  || $target.hasClass('js-trello-scrum-member-points')
 			  || $target.hasClass('date') // the 'time-ago' functionality changes date spans every minute
 			  || $target.hasClass('js-phrase') // this is constantly updated by Trello, but doesn't affect estimates.
               || $target.hasClass('member')
@@ -192,17 +197,21 @@ var recalcTotalsObserver = new CrossBrowser.MutationObserver(function(mutations)
 	} else if(refreshJustTotals){
 		calcListPoints();
 	}
-    
+
+	if (doFullRefresh || refreshJustTotals) {
+		refreshTotalPointsPerAssignee();
+	}
+
 	// There appears to be a change to have the card-title always be a textarea. We'll allow for either way, to
 	// start (in case this is A/B testing, or they don't keep it). 20160409
-    $editControls = $(".card-detail-title .edit-controls"); // old selector
+  $editControls = $(".card-detail-title .edit-controls"); // old selector
 	if($editControls.length == 0){
 		$editControls = $(".js-card-detail-title-input.is-editing").closest('.window-header'); // new selector
 	}
-    if($editControls.length > 0)
-    {
-        showPointPicker($editControls.get(0));
-    }
+  if($editControls.length > 0)
+  {
+  	showPointPicker($editControls.get(0));
+  }
 });
 recalcTotalsObserver.observe(document.body, obsConfig);
 
@@ -492,6 +501,7 @@ var lto;
 function calcListPoints(){
 	clearTimeout(lto);
 	lto = setTimeout(function(){
+		membersPoints = {};
 		$('.list').each(function(){
 			if(!this.list) new List(this);
 			else if(this.list.calc) this.list.calc();
@@ -673,6 +683,16 @@ function ListCard(el, identifier){
 				points = -1;
 				cash = -1;
 				pointValue = 0;
+			}
+
+			if (points > 0) {
+				$cardMembers = $card.find('.js-list-card-members .js-member-on-card-menu');
+				$cardMembers.each(function() {
+					var memberID = $(this).data('idmem');
+					if (!memberID) { return; }
+
+					membersPoints[memberID] = (membersPoints[memberID] || 0) + points / $cardMembers.length;
+				});
 			}
 
 			clearTimeout(to2);
@@ -1019,3 +1039,26 @@ function getCookie(c_name, defaultValue){
 	}
 	return c_value;
 }; // end getCookie()
+
+function refreshTotalPointsPerAssignee(){
+	if (Object.keys(membersPoints).length === 0) { return; }
+
+	$members        = $('.js-filter-search-results .js-mem-list li');
+	pointsContainer = '<span class="js-trello-scrum-member-points badge-points point-value"></span>';
+	pointsSelector  = '.js-select-member .js-trello-scrum-member-points';
+
+	$members.each(function() {
+		var $this = $(this);
+		var memberID = $this.find('.js-select-member').attr("idmember");
+		if (!memberID) { return; }
+
+		$memberPoints = $this.find(pointsSelector);
+		if ($memberPoints.length === 0) {
+			$this.find('a:first').append(pointsContainer);
+			$memberPoints = $this.find(pointsSelector);
+		}
+
+		var points = membersPoints[memberID] || 0;
+		$memberPoints.text(points);
+	});
+}
