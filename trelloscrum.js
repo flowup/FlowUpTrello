@@ -17,6 +17,7 @@
 ** Samuel Gaus <https://github.com/gausie>
 ** Sean Colombo <https://github.com/seancolombo>
 ** Geoffrey Tisserand <https://github.com/geoffrey>
+** Vojtech Mašek <https://github.com/Shootervm>
 **
 */
 
@@ -1058,7 +1059,7 @@ function refreshTotalPointsPerAssignee(){
 			$memberPoints = $this.find(pointsSelector);
 		}
 
-		var points = membersPoints[memberID] || 0;
+		var points = round(membersPoints[memberID]) || 0;
 		$memberPoints.text(points);
 	});
 }
