@@ -29,7 +29,7 @@ var debounce = function (func, threshold, execAsap) {
 		function delayed () {
 			if (!execAsap)
 				func.apply(obj, args);
-			timeout = null; 
+			timeout = null;
 		};
 
 		if (timeout)
@@ -66,6 +66,7 @@ refreshSettings(); // get the settings right away (may take a little bit if usin
 var reg = /(?:^|\s?)\((\$?)\s?(\x3f|\d*\.? ?\d+)(\))\s?/m, // surrounded by ()
   regC = /(?:^|\s?)\[(\$?)\s?(\x3f|\d*\.? ?\d+)(\])\s?/m, // surrounded by []
   regV = /\{(\d*)\}/m, // value of one point in cash surrounded by {}
+	regHeader = /\*{3}\s*(.+)\*{3}$/i, // used to match headers surrounded by three asterisks
   iconUrl, pointsDoneUrl, cashIconUrl,
 	flameUrl, flame18Url,
 	scrumLogoUrl, scrumLogo18Url;
@@ -145,7 +146,7 @@ $(function(){
 		setTimeout(checkExport,500)
 	});
 
-	calcListPoints();
+	updateFilters();
 });
 
 // Recalculates every card and its totals (used for significant DOM modifications).
@@ -472,6 +473,7 @@ var ctto;
 function computeTotal(){
 	clearTimeout(ctto);
 	ctto = setTimeout(function(){
+    console.log('called ccto');
 		var $title = $('.board-header-btns.mod-right,#board-header a');
 		var $total = $title.children('.list-total').empty();
 		if ($total.length == 0)
@@ -480,33 +482,40 @@ function computeTotal(){
 		for (var i in _pointsAttr){
 			var score = 0, cash = 0,
 				attr = _pointsAttr[i];
-			$('#board .list-total:not(.list-total-cash) .'+attr).each(function(){
+			$('#board .list .list-header .list-total:not(.list-total-cash) .'+attr).each(function(){
 				score+=parseFloat(this.textContent)||0;
 			});
-			var scoreSpan = $('<span/>', {class: attr}).text(round(score)||'');
+
+			var scoreSpan = $('<span/>', {class: attr}).text(round(score)||0);
 			$total.append(scoreSpan);
 
-			$('#board .list-total.list-total-cash .'+attr).each(function(){
+			$('#board .list .list-header .list-total.list-total-cash .'+attr).each(function(){
 				cash+=parseFloat(this.textContent.replace(' ', ''))||0;
 			});
-			var valueSpan = $('<span/>', {class: "list-total-cash "+attr}).text(currencyFormat(round(cash)));
+			var valueSpan = $('<span/>', {class: "list-total-cash "+attr}).text(currencyFormat(round(cash))||0);
 			$total.append(valueSpan);
 		}
-        
-        updateBurndownLink(); // the burndown link and the total are on the same bar... so now they'll be in sync as to whether they're both there or not.
+		// do not need this
+		//updateBurndownLink(); // the burndown link and the total are on the same bar... so now they'll be in sync as to whether they're both there or not.
 	});
 };
 
 //calculate list totals
 var lto;
+var magicHeaderCalc = true;
 function calcListPoints(){
 	clearTimeout(lto);
 	lto = setTimeout(function(){
+    console.log('called lto');
 		membersPoints = {};
 		$('.list').each(function(){
 			if(!this.list) new List(this);
 			else if(this.list.calc) this.list.calc();
 		});
+    if (magicHeaderCalc) {
+      magicHeaderCalc = false;
+      calcListPoints();
+    }
 	});
 };
 
@@ -525,7 +534,7 @@ function List(el){
 	function readCard($c){
 		if($c.target) {
 			if(!/list-card/.test($c.target.className)) return;
-			$c = $($c.target).filter('.list-card:not(.placeholder)');
+			$c = $($c.target).filter('.list-card:not(.placeholder)').get().reverse();
 		}
 		$c.each(function(){
 			if(!this.listCard) for (var i in _pointsAttr)
@@ -540,40 +549,46 @@ function List(el){
 	this.calc = debounce(function(){
 		self._calcInner();
     }, 500, true); // executes right away unless over its 500ms threshold since the last execution
-	this._calcInner	= function(e){ // don't call this directly. Call calc() instead.
-		//if(e&&e.target&&!$(e.target).hasClass('list-card')) return; // TODO: REMOVE - What was this? We never pass a param into this function.
+	this._calcInner	= function(){ // don't call this directly. Call calc() instead.
 		clearTimeout(to);
 		to = setTimeout(function(){
+      console.log('called to');
 			$total.empty().appendTo($list.find('.list-title,.list-header'));
 			$totalCash.empty().appendTo($list.find('.list-title,.list-header'));
+
 			for (var i in _pointsAttr){
-				var score=0, value=0,
+				var score=0, value=0, currentValue=0, currentScore=0;
 					attr = _pointsAttr[i];
-				$list.find('.list-card:not(.placeholder)').each(function(){
+				// iterate list-card in reverse order, thanks to this we are able to calculate middle steps and show special header cards with totals
+				$($list.find('.list-card:not(.placeholder)').get().reverse()).each(function(){
 					if(!this.listCard) return;
 					if(!isNaN(Number(this.listCard[attr].points)) && !isNaN(Number(this.listCard[attr].cash))){
-						// Performance note: calling :visible in the selector above leads to noticible CPU usage.
+						// Performance note: calling :visible in the selector above leads to noticeable CPU usage.
 						if(jQuery.expr.filters.visible(this)){
 							score+=Number(this.listCard[attr].points);
 							value+=Number(this.listCard[attr].cash);
 							// computes cash value from points and point value
 							value+=Number(this.listCard[attr].points * this.listCard[attr].pointValue);
+
+							if($(this).hasClass('list-title-special-card')) {
+								this.listCard[attr].showTotal(score-currentScore, value-currentValue);
+								currentValue = value;
+								currentScore = score;
+							}
 						}
 					}
 				});
 				var scoreTruncated = round(score);
 				var valueTruncated = (value>0) ? currencyFormat(round(value)) : '';
-				var scoreSpan = $('<span/>', {class: attr}).text( (scoreTruncated>0) ? scoreTruncated : '');
-				var cashSpan = $('<span/>', {class: attr}).text(valueTruncated);
-				$total.append(scoreSpan);
-				$totalCash.append(cashSpan);
+				$total.append($('<span/>', {class: attr}).text((scoreTruncated>0) ? scoreTruncated : ''));
+				$totalCash.append($('<span/>', {class: attr}).text(valueTruncated));
 				computeTotal();
 			}
 		});
 	};
     
     this.refreshList = debounce(function(){
-    		readCard($list.find('.list-card:not(.placeholder)'));
+    		readCard($($list.find('.list-card:not(.placeholder)').get().reverse()));
             this.calc(); // readCard will call this.calc() if any of the cards get refreshed.
     }, 500, false);
 
@@ -613,7 +628,7 @@ function List(el){
     cardAddedRemovedObserver.observe($list.get(0), obsConfig);
 
 	setTimeout(function(){
-		readCard($list.find('.list-card'));
+		readCard($($list.find('.list-card:not(.placeholder)').get().reverse()));
 		setTimeout(el.list.calc);
 	});
 };
@@ -628,22 +643,28 @@ function ListCard(el, identifier){
 	}
 	el.listCard[identifier]=this;
 
+	var rawTitle = $(el).find('a.list-card-title')[0].textContent;
+
   var cashPoints = false;
   var m;
 	// this will check if the dolar ($) symbol is present in the card title points estimation or consumption
-  if ((m = /(?:^|\s?)[\(\[](\$?)\s?(\x3f|\d*\.?\d+)([\)\]])\s?/m.exec($(el).find('a.list-card-title')[0].textContent)) !== null) {
+  if ((m = /(?:^|\s?)[\(\[](\$?)\s?(\x3f|\d*\.?\d+)([\)\]])\s?/m.exec(rawTitle)) !== null) {
     if (m[1] == '$') cashPoints = true;
   }
 
-	var points=-1, cash=-1, pointValue=0,
+	var points=-1, cash=-1, pointValue=0, scoreTotal=0, cashTotal=0,
 		consumed=identifier!=='points',
 		regexp=consumed?regC:reg,
 		parsed,
 		that=this,
 		busy=false,
 		$card=$(el),
-		$badge = $('<div class="badge badge-points point-count" style="background-image: url(' + iconUrl + ')"></div>'),
-		$cashBadge = $('<div class="badge badge-points badge-points-cash point-count" style="background-image: url(' + cashIconUrl + ')"></div>'),
+		$badge = $('<div class="badge badge-points" style="background-image: url(' + iconUrl + ')"></div>'),
+		$cashBadge = $('<div class="badge badge-points badge-points-cash" style="background-image: url(' + cashIconUrl + ')"></div>'),
+		$totalScoreBadge=$('<span class="'+ identifier +'"></span>'),
+		$totalCashBadge=$('<span class="'+ identifier +'"></span>'),
+		$totalScore = $('<span class="list-total"></span>'),
+	  $totalCash = $('<span class="list-total list-total-cash"></span>'),
 		to,
 		to2;
 
@@ -659,12 +680,13 @@ function ListCard(el, identifier){
 		clearTimeout(to);
 
 		to = setTimeout(function(){
+      console.log('called card to');
 			var $title=$card.find('a.list-card-title');
 			if(!$title[0])return;
 			// This expression gets the right value whether Trello has the card-number span in the DOM or not (they recently removed it and added it back).
 			var titleTextContent = (($title[0].childNodes.length > 1) ? $title[0].childNodes[$title[0].childNodes.length-1].textContent : $title[0].textContent);
 			if(titleTextContent) el._title = titleTextContent;
-			
+
 			// Get the stripped-down (parsed) version without the estimates, that was stored after the last change.
 			var parsedTitle = $title.data('parsed-title');
 
@@ -698,6 +720,7 @@ function ListCard(el, identifier){
 
 			clearTimeout(to2);
 			to2 = setTimeout(function(){
+        console.log('called to2');
 				if (!cashPoints) {
 					// Add the badge (for this point-type: regular or consumed) to the badges div.
 					$badge
@@ -723,12 +746,30 @@ function ListCard(el, identifier){
 						.prependTo($card.find('.badges'));
 				}
 
-
 				// Update the DOM element's textContent and data if there were changes.
 				if(titleTextContent != parsedTitle){
 					$title.data('orig-title', titleTextContent); // store the non-mutilated title (with all of the estimates/time-spent in it).
 				}
 				parsedTitle = $.trim(el._title.replace(reg,'$1').replace(regC,'$1').replace('\$', '').replace(regV, ''));
+
+				// Add special class if card is a header
+				var headerM;
+				if ((headerM = regHeader.exec(parsedTitle)) !== null ) {
+					parsedTitle = headerM[1];
+					$(el).addClass('list-title-special-card').css({'background-color': stringToColor(parsedTitle)});
+
+					var $list_card_details = $(el).find('.list-card-details')[0];
+					$totalScore.appendTo($list_card_details);
+					$totalCash.appendTo($list_card_details);
+					// show empty (0) totals before they are computed
+					$totalScoreBadge
+						.text(0)
+						.appendTo($(el).find('.list-total:not(.list-total-cash)')[0]);
+					$totalCashBadge
+						.text(0)
+						.appendTo($(el).find('.list-total.list-total-cash')[0]);
+				}
+
 				el._title = parsedTitle;
 				$title.data('parsed-title', parsedTitle); // save it to the DOM element so that both badge-types can refer back to it.
 				if($title[0].childNodes.length > 1){
@@ -744,16 +785,6 @@ function ListCard(el, identifier){
 			});
 		});
 	};
-
-	this.__defineGetter__('points',function(){
-		return parsed?points>0?points:0:''
-	});
-	this.__defineGetter__('cash',function(){
-		return parsed?cash>0?cash:0:''
-	});
-	this.__defineGetter__('pointValue',function(){
-		return parsed?pointValue>0?pointValue:0:''
-	});
 
 	var cardShortIdObserver = new CrossBrowser.MutationObserver(function(mutations){
 		$.each(mutations, function(index, mutation){
@@ -787,6 +818,31 @@ function ListCard(el, identifier){
 		var observerConfig = { childList: true, characterData: false, attributes: false, subtree: true };
 		cardShortIdObserver.observe(el, observerConfig);
 	}
+
+	this.__defineGetter__('points',function(){
+		return parsed?points>0?points:0:''
+	});
+	this.__defineGetter__('cash',function(){
+		return parsed?cash>0?cash:0:''
+	});
+	this.__defineGetter__('pointValue',function(){
+		return parsed?pointValue>0?pointValue:0:''
+	});
+
+	this.showTotal = function(score, cash){
+		if (score != this.scoreTotal) {
+			this.scoreTotal = score;
+			$totalScoreBadge
+				.text(score||0)
+				.appendTo($(el).find('.list-total:not(.list-total-cash)')[0]);
+		}
+		if (cash != this.cashTotal) {
+			this.cashTotal = cash;
+			$totalCashBadge
+				.text(currencyFormat(cash)||0)
+				.appendTo($(el).find('.list-total.list-total-cash')[0]);
+		}
+	};
 
 	setTimeout(that.refresh);
 };
@@ -854,7 +910,6 @@ function showPointPicker(location) {
 
 //for export
 var $excel_btn,$excel_dl;
-window.URL = window.webkitURL || window.URL;
 
 function checkExport() {
 	if($excel_btn && $excel_btn.filter(':visible').length) return;
@@ -1001,7 +1056,7 @@ function onSettingsUpdated(){
 	
 	// Refresh the links because link-settings may have changed.
 	$('.s4tLink').remove();
-	updateBurndownLink();
+	//updateBurndownLink();
 } // end onSettingsUpdated()
 
 /**
@@ -1062,4 +1117,18 @@ function refreshTotalPointsPerAssignee(){
 		var points = round(membersPoints[memberID]) || 0;
 		$memberPoints.text(points);
 	});
+}
+
+/**
+ * Will generate a random color from given string
+ */
+function stringToColor(s){
+	var r = 0, i = 0, len = s.length;
+
+	s = s.toLowerCase();
+
+	for ( ; i < len; i++ ) {
+		r += s.charCodeAt(i) * 900;
+	}
+	return 'hsla('+(r % 256)+',50%,40%,.5)';
 }
