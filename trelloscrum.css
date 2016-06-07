@@ -3,18 +3,27 @@
 	font-size: 16px;
 	font-weight: bold;
 	float: right;
-	margin: 1px 0px 0 0;
+	margin: 1px 0 0 0;
 	line-height:18px;
 }
+.list-title-special-card .list-total {
+	margin-bottom: 3px;
+}
+
 .list-total-cash {
 	color: #689F38;
 	float: left;
 }
-.board-header-btns .list-total{ /* only targets the board points totals */
+
+.board-header-btns .list-total, /* only targets the board points totals */
+.list-title-special-card .list-total {
 	line-height:24px;
 	color: #60c5f0;
-	background-color: rgba(0,0,0,0.2);
+	background-color: rgba(0,0,0,0.4);
 	border-radius: 3px;
+}
+.list-title-special-card .list-total-cash {
+	color: #8BC34A;
 }
 
 .list-total span{
@@ -31,6 +40,17 @@
 	display: inline !important;
 	margin-right: 0 !important;
 	vertical-align: -4px;
+}
+
+.list-title-special-card {
+	text-align: center;
+	border: 0 !important;
+}
+.list-title-special-card .list-card-title {
+	font-weight: 700 !important;
+	font-size: 16px;
+	margin-top: 4px !important;
+	margin-bottom: 4px !important;
 }
 
 .manual .window-main-col p, .window-main-col h2 {
@@ -70,7 +90,7 @@
 }
 
 .points-done-icon{
-	background-position: 0px 3px !important;
+	background-position: 0 3px !important;
 	background-repeat: no-repeat !important;
 	margin-left:3px;
 }
