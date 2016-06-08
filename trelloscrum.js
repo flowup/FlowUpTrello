@@ -473,7 +473,7 @@ var ctto;
 function computeTotal(){
 	clearTimeout(ctto);
 	ctto = setTimeout(function(){
-    console.log('called ccto');
+    //console.log('called ccto');
 		var $title = $('.board-header-btns.mod-right,#board-header a');
 		var $total = $title.children('.list-total').empty();
 		if ($total.length == 0)
@@ -506,7 +506,7 @@ var magicHeaderCalc = true;
 function calcListPoints(){
 	clearTimeout(lto);
 	lto = setTimeout(function(){
-    console.log('called lto');
+    //console.log('called lto');
 		membersPoints = {};
 		$('.list').each(function(){
 			if(!this.list) new List(this);
@@ -552,7 +552,7 @@ function List(el){
 	this._calcInner	= function(){ // don't call this directly. Call calc() instead.
 		clearTimeout(to);
 		to = setTimeout(function(){
-      console.log('called to');
+      //console.log('called to');
 			$total.empty().appendTo($list.find('.list-title,.list-header'));
 			$totalCash.empty().appendTo($list.find('.list-title,.list-header'));
 
@@ -680,7 +680,7 @@ function ListCard(el, identifier){
 		clearTimeout(to);
 
 		to = setTimeout(function(){
-      console.log('called card to');
+      //console.log('called card to');
 			var $title=$card.find('a.list-card-title');
 			if(!$title[0])return;
 			// This expression gets the right value whether Trello has the card-number span in the DOM or not (they recently removed it and added it back).
@@ -720,7 +720,7 @@ function ListCard(el, identifier){
 
 			clearTimeout(to2);
 			to2 = setTimeout(function(){
-        console.log('called to2');
+        //console.log('called to2');
 				if (!cashPoints) {
 					// Add the badge (for this point-type: regular or consumed) to the badges div.
 					$badge
