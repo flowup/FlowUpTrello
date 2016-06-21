@@ -118,6 +118,33 @@
 }
 .badge:empty{ display:none !important; }
 
+
+.board-wrapper.is-show-menu .board-header-btn.mod-show-menu { /* TODO: maybe this fixes the show menu button */
+	margin-right: 0;
+}
+
+
+/* This manages labels with names */
+.list-card {
+	overflow: hidden;
+}
+.list-card-labels {
+	display: block;
+	margin: 0!important;
+}
+.list-card-labels .card-label {
+	font-size: 0.8rem;
+	letter-spacing: 1px;
+	line-height: 1.1rem!important;
+	height: inherit!important;
+	padding: 0 0.5em!important;
+	text-align: center;
+	text-shadow: rgba(0, 0, 0, .3) 0 0 5px, rgba(0, 0, 0, .4) 0 0 5px;
+	width: auto!important;
+	display: inline!important;
+}
+
+
 /* == b4t integration==*/
 #burndownLink .icon-sm{
     padding:6px;
